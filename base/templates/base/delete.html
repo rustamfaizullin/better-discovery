@@ -1,0 +1,46 @@
+{% extends "main.html" %}
+
+{% block extra_styles %}
+{% load static %}
+
+<link rel="stylesheet" href="{% static 'styles/game.css' %}">
+
+{% endblock %}
+
+{% block title %}
+delete
+{% endblock %}
+
+{% block content %}
+<p>
+  Are you sure you want to delete:
+  <div class='review-container'>
+    <div class='review-author-container'>
+      <p class='review-author'>
+        User: {{review.author}}
+      </p>
+    </div>
+    <div class='review-score-container'>
+      <p class='review-score'> 
+        Rating: {{review.score}} / 10
+      </p>
+    </div>
+    <hr style="margin: 0;">
+    <div class='review-body-container'>
+      <pre class='review-body' >{{review.body}}</pre>
+    </div>
+  </div>
+</p>
+
+<form action="" method="POST">
+  {% csrf_token %}
+  <input type="submit" value="confirm">
+</form>
+
+<p>
+  <a href="{{request.META.HTTP_REFERER}}">Go back</a>
+</p>
+
+<script src="{% static 'js/game.js' %}"></script>
+
+{% endblock content %}

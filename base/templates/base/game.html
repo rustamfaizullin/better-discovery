@@ -1,0 +1,128 @@
+{% extends "main.html" %}
+
+{% block extra_styles %}
+{% load static %}
+
+<link rel="stylesheet" href="{% static 'styles/game.css' %}">
+
+{% endblock %}
+
+{% block title %}
+{{game_data.source_name}}
+{% endblock %}
+
+{% block content %}
+
+<div class='game-container'>
+  <div class='game-stats-container'>
+    <p class='game-stat'>Active: {{game_data.active}}</p>
+    <p class='game-stat'>Favorites: {{game_data.favorited_count}}</p>
+    <p class='game-stat'>Visits: {{game_data.visits}}</p>
+    <p class='game-stat'>Updated: {{game_data.updated}}</p>
+    <p class='game-stat'>Created: {{game_data.created}}</p>
+    <p class='game-stat'>Avatar Type:
+      {% if game_data.avatar_type == 'MorphToR6' %}R6 
+      {% elif game_data.avatar_type == 'MorphToR15' %}R15 
+      {% elif game_data.avatar_type == 'PlayerChoice' %}Player Choice 
+      {% else %}unknown 
+      {% endif %}
+    </p>
+    <p class='game-stat'>Url:
+      <a href="https://www.roblox.com/games/{{game_data.place_id}}" target="_blank" class='link'>
+        {{game_data.place_id}}
+      </a>
+    </p>
+  </div>
+  <div class='carousel'>
+    <!-- Container for images -->
+    <div class='carousel-images'>
+      {% for url in thumbnail_urls %}
+        <img src="{{url}}" alt="Game Thumbnail" class='carousel-image'>
+      {% endfor %}
+    <!-- buttons for directions -->
+    <button class='carousel-btn prev' onclick='changeSlide(-1)'>prev</button>
+    <button class='carousel-btn next' onclick='changeSlide(1)'>next</button>
+    </div>
+  </div>
+  <div class='game-description-container'>
+    <div class='game-name-container'>
+      <pre class='game-name'>{{game_data.source_name}}</pre>
+    </div>
+    <p class="game-creator">
+      <span class="made-by">Created By </span>
+      {% if creator_type == 'Group' %}
+      <a href="https://www.roblox.com/communities/{{game_data.creator_id}}" target="_blank" class='link'>{{game_data.creator_name}}</a>
+      {% else %}
+      <a href="https://www.roblox.com/users/{{game_data.creator_id}}/profile" target="_blank" class='link'>{{game_data.creator_name}}</a>
+      {% endif %}
+    </p>
+    <div class='game-description-description-container'>
+      <pre class="game-description">{{game_data.source_description}}</pre>
+    </div>
+  </div>
+  <div class='game-genres-container'>
+    {% if game_rate %}
+    <p>Game Rating: {{game_rate}} / 10</p>
+    {% else %}
+    <p>Game Rating: No rating</p>
+    {% endif %}
+    <p>Genre Tags:</p>
+  </div>
+</div>
+
+<hr>
+
+{% if request.user.is_authenticated %}
+  {% if check_review != 'no_review' %}
+
+  {% elif check_review == 'no_review' %}
+  <div class='make-review-container'>
+    <form action="" method="POST">
+      {% csrf_token %}
+      <div>
+        <label>Enter Review:</label>
+        <input type="text" name="body">
+        <select id='score' name='score'>
+          {% for i in '0123456789'|make_list %}
+          <option value="{{i}}">{{i}}</option>
+          {% endfor %}
+          <option value="10">10</option>
+        </select>
+        <input type="submit" value="submit">
+      </div>
+    </form>
+    <hr>
+  </div>
+  {% endif %}
+{% endif %}
+
+<div class='reviews-container'>
+  {% for review in reviews %}
+    <div class='review-container'>
+      <div class='review-author-container'>
+        <p class='review-author'>
+          User: {{review.author}}
+        </p>
+      </div>
+      <div class='review-score-container'>
+        <p class='review-score'> 
+          Rating: {{review.score}} / 10
+        </p>
+      </div>
+      <hr style="margin: 0;">
+      <div class='review-body-container'>
+        <pre class='review-body' >{{review.body}}</pre>
+      </div>
+      {% if request.user == review.author %}
+      <div class='edit-container'>
+        <a href="{% url 'edit-review' review.id %}" class='edit'>Edit</a>
+        <a href="{% url 'delete-review' review.id %}" class='delete'>Delete</a>
+      </div>
+      {% endif %}
+    </div>
+  {% endfor %}
+</div>
+
+<script src="{% static 'js/game.js' %}"></script>
+
+{% endblock %}

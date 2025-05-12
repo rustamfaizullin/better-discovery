@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  {% load static %}
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" type="image/x-icon" href="{% static 'images/favicon.ico' %}">
+  <link rel="stylesheet" type='text/css' media='screen' href="{% static 'styles/main.css' %}">
+  {% block extra_styles %}
+  {% endblock %}
+  <title>{% block title %}main{% endblock %}</title>
+</head>
+<body>
+  {% include 'navbar.html' %}
+
+  {% if messages %}
+    <ul>
+      {% for message in messages %}
+        <li>{{message}}</li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+
+  {% block content %}
+  <title>main</title>
+  
+  {% endblock %}
+</body>
+</html>

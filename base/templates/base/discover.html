@@ -1,0 +1,48 @@
+{% extends "main.html" %}
+
+{% block extra_styles %}
+{% load static %}
+
+<link rel="stylesheet" href="{% static 'styles/discover.css' %}">
+
+{% endblock  %}
+
+{% block title %}
+search
+{% endblock %}
+
+{% block content %}
+  {% if games_datas %}
+  <div class='games-feed-container'>
+      {% for game_data in games_datas %}
+          <div class='game-feed-container loading' >
+            <div class='game-container'>
+                <a href="{% url 'game' game_data.place_id %}">
+                    <img src="{{game_data.icon}}" alt="{{game_data.name}}" class='game-feed-image'>
+                </a>
+                <div class='game-player-count-container'>
+                    <p class='game-player-count'>
+                        {{game_data.playerCount}}
+                    </p>
+                </div>
+                <p class='game-name'>
+                    {{game_data.name}}
+                </p>
+                {% if game_data.rating %}
+                <p class='game-rating'>
+                    {{game_data.rating}}/10
+                </p>
+                {% else %}
+                <p class='game-no-rating'>
+                    No rating
+                </p>
+                {% endif %}
+            </div>
+          </div>
+      {% endfor %}
+  </div>
+  {% else %}
+      <p>Search</p>
+  {% endif %}
+<script src="{% static 'js/icons_show_discover.js' %}"></script>
+{% endblock  %}
