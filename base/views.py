@@ -3,10 +3,13 @@ from django.contrib.auth.models import User
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import login, logout, authenticate
+from django.db.models import Avg, Count
+from django.db.models.functions import Coalesce
 from django.contrib import messages
 from django.http import HttpResponse
 from .roblox_fetcher import RobloxFetcher
 import datetime
+from .forms import ReviewForm
 from .models import Game, Review
 import asyncio
 import time
@@ -17,11 +20,13 @@ def home(request):
     return redirect('feed')
 
 def feed(request):
-    feed_games, error_list, expected_games_ids = fetcher.get_feed()
-    # feed_games, error_list, expected_games_ids = asyncio.run(fetcher.get_feed_async())
+    games_ids_ratings = tuple(Game.objects.annotate(
+            average_rating=Coalesce(Avg('reviews__score'), 0.0), count=Count('reviews')
+        ).order_by('-average_rating', '-count')[:49].values_list('id', 'average_rating', flat=False))
+    feed_games, error_list, expected_games_ids = asyncio.run(fetcher.get_feed_async(games_ids_ratings))
     MIN_RETURNED_THRESHOLD = 0.2
 
-    if len(error_list) == 0:
+    if not error_list:
         context = {'feed_games': feed_games}
         return render(request, 'base/feed.html', context)
     elif len(error_list) < len(expected_games_ids) * MIN_RETURNED_THRESHOLD:
@@ -34,9 +39,6 @@ def feed(request):
                 continue
         return redirect('feed')
 
-    context = {'feed_games': feed_games}
-    return render(request, 'base/feed.html', context)
-
 def discover(request):
     search_query = request.GET.get('q') if request.GET.get('q') is not None else ''
     games_datas = fetcher.get_search_query(search_query)
@@ -46,37 +48,57 @@ def discover(request):
 
 def game(request, pk):
     place_id = pk
-    thumbnail_urls = fetcher.fetch_game_thumbnails(place_id)
-    game_data = fetcher.fetch_game_data(place_id)
 
-    game_instance, _ = Game.objects.get_or_create(id=place_id)
+    thumbnail_urls, game_data = asyncio.run(fetcher.get_game_async(place_id))
+
+    game_instance, created = Game.objects.get_or_create(id=place_id)
+
+    if created or game_instance.outdated:
+        thumbnail_urls, game_data = asyncio.run(fetcher.get_game_async(place_id))
+        game_instance.source_name = game_data.source_name
+        game_instance.source_description = game_data.source_description
+        game_instance.creator_id = game_data.creator_id
+        game_instance.creator_type = game_data.creator_type
+        game_instance.creator_name = game_data.creator_name
+        game_instance.visits = game_data.visits
+        game_instance.favorited_count = game_data.favorited_count
+        game_instance.created = game_data.created
+        game_instance.updated = game_data.updated
+        game_instance.avatar_type = game_data.avatar_type
+        game_instance.active = game_data.active
+        # game_instance.icon_url = game_data.icon_url
+        game_instance.thumbnails = list(thumbnail_urls)
+        game_instance.save()
+        
     reviews = Review.objects.filter(game=game_instance)
 
-    number_reviews = len(reviews)
-    if number_reviews > 0:
-        sum_score = sum(review.score for review in reviews)
-        game_rate = sum_score / number_reviews
-    else:
-        game_rate = 0
+    game_rate = game_instance.get_avg_rating()['avg_rating']
 
-    check_review = None
+    form = ReviewForm()
+
+    review_already_exists = None
     if request.user.is_authenticated:
-        check_review = Review.objects.filter(game=game_instance, author=request.user).first() or 'no_review'
+        review_already_exists = Review.objects.filter(game=game_instance, author=request.user).exists()
     
     if request.method == "POST":
+        form = ReviewForm(request.POST)
         if request.user.is_authenticated:
             if Review.objects.filter(game=game_instance, author=request.user):  # if user already have review he can't make another one
                 return redirect('game', pk=place_id)
-            Review.objects.create(
-                game=game_instance,
-                author=request.user,
-                body=request.POST.get('body'),
-                score=request.POST.get('score')
-            )
-            return redirect('game', pk=place_id)
+            if form.is_valid():
+                Review.objects.create(
+                    game=game_instance,
+                    author=request.user,
+                    body=request.POST.get('body'),
+                    score=request.POST.get('score')
+                )
+                messages.success(request, 'review succesfully applied')
+            else:
+                messages.error(request, 'review is not valid')
         return redirect('game', pk=place_id)
 
-    context = {'thumbnail_urls': thumbnail_urls, 'game_data': game_data, 'reviews': reviews, 'check_review': check_review, 'game_rate': game_rate}
+    context = {'thumbnail_urls': game_instance.thumbnails, 'game_data': game_instance, 'reviews': reviews, 'review_already_exists': review_already_exists, 'game_rate': game_rate,
+               'form': form}
     return render(request, 'base/game.html', context)
 
 def loginPage(request):
@@ -127,6 +149,7 @@ def deleteReview(request, pk):
         return render(request, 'base/forbidden.html')
     if request.method == "POST":
         review.delete()
+        messages.success(request, 'review succesfully deleted')
         return redirect('game', pk=place_id)
     return render(request, 'base/delete.html', {'review': review})
 
@@ -134,13 +157,15 @@ def deleteReview(request, pk):
 @login_required(login_url='login')
 def editReview(request, pk):
     review = Review.objects.get(id=pk)
+    form = ReviewForm(instance=review)
     place_id = review.game.id
     if request.user != review.author:
         return render(request, 'base/forbidden.html')
     if request.method == "POST":
+        form = ReviewForm(request.POST)
         Review.objects.filter(id=pk).update(
             body=request.POST.get("body"),
             score=request.POST.get("score")
         )
         return redirect('game', pk=place_id)
-    return render(request, 'base/edit.html', {'review': review})
+    return render(request, 'base/edit.html', {'form': form})

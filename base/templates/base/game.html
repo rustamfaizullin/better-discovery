@@ -61,11 +61,7 @@
     </div>
   </div>
   <div class='game-genres-container'>
-    {% if game_rate %}
     <p>Game Rating: {{game_rate}} / 10</p>
-    {% else %}
-    <p>Game Rating: No rating</p>
-    {% endif %}
     <p>Genre Tags:</p>
   </div>
 </div>
@@ -73,24 +69,28 @@
 <hr>
 
 {% if request.user.is_authenticated %}
-  {% if check_review != 'no_review' %}
-
-  {% elif check_review == 'no_review' %}
+  {% if review_already_exists %}
+    {% if messages %}
+      <ul>
+        {% for message in messages %}
+          <li>{{message}}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  {% elif not review_already_exists %}
   <div class='make-review-container'>
     <form action="" method="POST">
       {% csrf_token %}
-      <div>
-        <label>Enter Review:</label>
-        <input type="text" name="body">
-        <select id='score' name='score'>
-          {% for i in '0123456789'|make_list %}
-          <option value="{{i}}">{{i}}</option>
-          {% endfor %}
-          <option value="10">10</option>
-        </select>
-        <input type="submit" value="submit">
-      </div>
+      {{form.as_p}}
+      <input type="submit" value="submit">
     </form>
+    {% if messages %}
+      <ul>
+        {% for message in messages %}
+          <li>{{message}}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
     <hr>
   </div>
   {% endif %}

@@ -15,17 +15,8 @@ edit
 <div class='make-review-container'>
   <form action="" method="POST">
     {% csrf_token %}
-    <div>
-      <label>Update Review:</label>
-      <input type="text" name="body" value="{{review.body}}">
-      <select id='score' name='score' value=2>
-        {% for i in '0123456789'|make_list %}
-        <option value="{{i}}" {% if i|stringformat:"s" == review.score|stringformat:"s" %} selected {% endif %}>{{i}}</option>
-        {% endfor %}
-        <option value="10" {% if 10 == review.score %} selected {% endif %}>10</option>
-      </select>
-      <input type="submit" value='update'>
-    </div>
+    {{form.as_p}}
+    <input type="submit" value='update'>
   </form>
   <hr>
 </div>

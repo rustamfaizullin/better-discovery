@@ -1,8 +1,8 @@
 document.addEventListener('DOMContentLoaded', () => {
     const containers = document.querySelectorAll('.game-feed-container');
-    ms = 200
+    ms = 30
     containers.forEach((container, index) => {
-        ms -= 2
+        if (ms > 1) ms -= 1
         setTimeout(() => {
             container.classList.remove('loading');
         }, index * ms);

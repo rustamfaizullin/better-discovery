@@ -5,6 +5,9 @@ from base.models import Game, Review
 from asgiref.sync import sync_to_async
 from dotenv import load_dotenv
 import os
+import asyncio
+from django.db.models import Avg, Count
+from django.db.models.functions import Coalesce
 
 load_dotenv()
 
@@ -79,90 +82,53 @@ class RobloxFetcher:
         data = self.fetch_json(self.UNIVERSE_URL, place_id)
         return data['universeId']
     
+    async def get_universe_id_async(self, place_id, session):
+        data = await self.fetch_json_async(self.UNIVERSE_URL, place_id, session)
+        return data['universeId']
+    
     def get_universe_ids(self, place_ids):
         universe_ids = [self.get_universe_id(place_id) for place_id in place_ids]
         return ','.join(str(universe_id) for universe_id in universe_ids)
     
+    async def get_universe_ids_async(self, place_ids):
+        async with aiohttp.ClientSession() as session:
+            universe_ids = await asyncio.gather(
+                *[self.get_universe_id_async(place_id, session) for place_id in place_ids]
+            )
+            return ','.join(str(universe_id) for universe_id in universe_ids)
+    
     # методы для работы с иконками и тамбнейлами
-    def get_game_icon(self, place_id):
-        data = self.fetch_json(self.GAME_ICON_URL, place_id)
-        if 'errors' in data:
-            return 'Too many requests'
-        else:
-            return data['data'][0]['imageUrl']
-        
     def get_games_icons(self, place_ids):
         if not place_ids:
             return None
         place_ids_icons = ','.join(str(id) for id in place_ids)
         icons_data = self.fetch_json(self.GAME_ICON_URL, place_ids_icons)['data']
         return {item["targetId"]: item["imageUrl"] for item in icons_data}
-    
+
     async def get_games_icons_async(self, place_ids, session):
         if not place_ids:
             return None
         place_ids_icons = ','.join(str(id) for id in place_ids)
         icons_data = await self.fetch_json_async(self.GAME_ICON_URL, place_ids_icons, session)
         return icons_data
-        
-    def fetch_game_thumbnails(self, place_id):
-        universe_id = self.get_universe_id(place_id)
-        data = self.fetch_json(self.THUMBNAIL_URL, universe_id)['data'][0]['thumbnails']
-        return list(reversed([item['imageUrl'] for item in data]))
-
-    def fetch_games_thumbnails(self, place_ids):
-        universe_ids = self.get_universe_ids(place_ids)
-        data = self.fetch_json(self.THUMBNAIL_URL, universe_ids)['data']
-        return [{item['universeId']: item['thumbnails']} for item in data]
-
-    def fetch_game_data(self, place_id):
-        universe_id = self.get_universe_id(place_id)
-        data = self.fetch_json(self.GAME_DATA_URL, universe_id)['data'][0]
-        place_id = data['rootPlaceId']
-        source_name = data['sourceName']
-        source_description = data['sourceDescription']
-        creator_id = data['creator']['id']
-        creator_name = data['creator']['name']
-        creator_type = data['creator']['type']
-        visits = data['visits']
-        favorited_count= data['favoritedCount']
-        created_data = data['created']
-        updated_data = data['updated']
-        active = data['playing']
-        avatar_type = data['universeAvatarType']
-
-        created = datetime.datetime.fromisoformat(created_data).strftime('%d/%m/%Y')
-        updated = datetime.datetime.fromisoformat(updated_data).strftime('%d/%m/%Y')
-
-        visits = self.change_value(visits)
-        favorited_count = self.change_value(favorited_count)
-        active = self.change_value(active)
-
-        return GameData(place_id, source_name, source_description, creator_id, creator_type, creator_name, visits,
-                 favorited_count, created, updated, active, avatar_type)
-
-    def fetch_games_data(self, place_ids):
-        universe_ids = self.get_universe_ids(place_ids)
-        data = self.fetch_json(self.GAME_DATA_URL, universe_ids)['data']
-        return [
-            [
-                item['id'],
-                item['sourceName'],
-                item['sourceDescription'],
-                item['creator']['id'],
-                item['creator']['name'],
-                item['creator']['type'], 
-                item['visits'], 
-                item['favoritedCount'], 
-                item['created'], 
-                item['updated'], 
-                item['playing'], 
-                item['universeAvatarType']
-            ]
-            for item in data
-        ]
     
-    def get_games_datas(self, data):
+    async def fetch_game_thumbnails_async(self, session, universe_id):
+        data = await self.fetch_json_async(self.THUMBNAIL_URL, universe_id, session)
+        return data
+
+    async def fetch_games_thumbnails(self, session, universe_ids):
+        """В разработке"""
+        data = await self.fetch_json_async(self.THUMBNAIL_URL, universe_ids, session)
+        return data
+        # return [{item['universeId']: item['thumbnails']} for item in data['data']]
+    
+    async def fetch_game_data_async(self, session, universe_id):
+        data = await self.fetch_json_async(self.GAME_DATA_URL, universe_id, session)
+        data = data['data'][0]
+
+        return data
+    
+    def get_discover_games_datas(self, data):
         place_ids = [item['contents'][0]['rootPlaceId'] for item in data]
         temp_playerCounts = [item['contents'][0]['playerCount'] for item in data]
         names = [item['contents'][0]['name'] for item in data]
@@ -204,38 +170,22 @@ class RobloxFetcher:
             #     results[0], results[2] = results[2], results[0]
         
         return results
-        
-    def get_feed_games_datas(self, games_ids_ratings):
-        games_ids = [id for id, _ in games_ids_ratings]
-        games_ratings = [rating for _, rating in games_ids_ratings]
-
-        icon_dict = self.get_games_icons(games_ids)
-
-        api_input = '&placeIds='.join(str(id) for id in games_ids)
-        data = self.fetch_json(self.GAME_UNIVERSE_IDS_URL, api_input)
-        names = [item['sourceName'] for item in data]
-        
-        results = []
-        for i, game_id in enumerate(games_ids):
-            icon = icon_dict.get(int(game_id))
-            name = names[i]
-            game_rate = games_ratings[i]
-            game = Place(game_id, icon, name, game_rate)
-            results.append(game)
-        
-        return results
     
     async def get_feed_games_datas_async(self, games_ids_ratings, session):
         games_ids = [id for id, _ in games_ids_ratings]
         games_ratings = [rating for _, rating in games_ids_ratings]
 
-        icons_data = await self.get_games_icons_async(games_ids, session)
+        api_input = '&placeIds='.join(str(id) for id in games_ids)
+
+        icons_data, data = await asyncio.gather(
+            self.get_games_icons_async(games_ids, session),
+            self.fetch_json_async(self.GAME_UNIVERSE_IDS_URL, api_input, session)
+        )
+
+        names = [item['sourceName'] for item in data]
+
         icons_data = icons_data['data']
         icon_dict = {item['targetId']: item['imageUrl'] for item in icons_data}
-
-        api_input = '&placeIds='.join(str(id) for id in games_ids)
-        data = await self.fetch_json_async(self.GAME_UNIVERSE_IDS_URL, api_input, session)
-        names = [item['sourceName'] for item in data]
         
         results = []
         for i, game_id in enumerate(games_ids):
@@ -246,19 +196,8 @@ class RobloxFetcher:
             results.append(game)
         
         return results
-
-    def get_feed(self):
-        games_ids_ratings = self.get_feed_ids_ratings()
-        expected_games_ids = [item for item, _ in games_ids_ratings]
-        place_objects = self.get_feed_games_datas(games_ids_ratings)
-        output_games_ids = [item.place_id for item in place_objects]
-
-        error_list = [item for item in expected_games_ids if item not in output_games_ids]
-
-        return place_objects, error_list, expected_games_ids
     
-    async def get_feed_async(self):
-        games_ids_ratings = await sync_to_async(self.get_feed_ids_ratings)()
+    async def get_feed_async(self, games_ids_ratings):
         expected_games_ids = [item for item, _ in games_ids_ratings]
         async with aiohttp.ClientSession() as session:
             place_objects = await self.get_feed_games_datas_async(games_ids_ratings, session)
@@ -267,28 +206,39 @@ class RobloxFetcher:
             error_list = [item for item in expected_games_ids if item not in output_games_ids]
 
             return place_objects, error_list, expected_games_ids
+        
+    async def get_game_async(self, place_id):
+        async with aiohttp.ClientSession() as session:
+            universe_id = await self.get_universe_id_async(place_id, session)
+            thumbnail_data, raw_game_data = await asyncio.gather(
+                self.fetch_game_thumbnails_async(session, universe_id),
+                self.fetch_game_data_async(session, universe_id)
+                )
+            thumbnail_urls = reversed([item['imageUrl'] for item in thumbnail_data['data'][0]['thumbnails']])
 
-    def get_feed_ids_ratings(self):
-        games = Game.objects.all()
+            game_data = GameData(
+                raw_game_data['rootPlaceId'],
+                raw_game_data['sourceName'],
+                raw_game_data['sourceDescription'],
+                raw_game_data['creator']['id'],
+                raw_game_data['creator']['name'],
+                raw_game_data['creator']['type'],
+                self.change_value(raw_game_data['visits']),
+                self.change_value(raw_game_data['favoritedCount']),
+                datetime.datetime.fromisoformat(raw_game_data['created']).strftime('%d/%m/%Y'),
+                datetime.datetime.fromisoformat(raw_game_data['updated']).strftime('%d/%m/%Y'),
+                self.change_value(raw_game_data['playing']),
+                raw_game_data['universeAvatarType'],
+            )
 
-        games_ids_ratings = []
-        for game in games:
-            reviews = Review.objects.filter(game=game)
-            number_reviews = len(reviews)
-            if number_reviews > 0:
-                game_rate = sum(review.score for review in reviews) / number_reviews
-            else:
-                game_rate = 0
-            games_ids_ratings.append((game.id, game_rate))
-
-        return sorted(games_ids_ratings, key=lambda x: x[1], reverse=True)[:49]
+            return thumbnail_urls, game_data
 
     def get_search_query(self, search_query):
         data = self.fetch_json(self.SEARCH_QUERY_URL, search_query)['searchResults']
         if data == []:
             return None
         else:
-            return self.get_games_datas(data)
+            return self.get_discover_games_datas(data)
         
     def change_value(self, game_data_value):
         if game_data_value >= 1000000000:
@@ -311,7 +261,9 @@ if __name__ == "__main__":
     place_ids = [116495829188952, 109444064268030, 97916836477883, 97302920770927, 91775736217182, 100998285081535, 137934409945962, 94857518748707, 70754779249108]  # replace with the desired place IDs
     place_id = 116495829188952  # replace with the desired place ID
 
-    feed = fetcher.get_feed()
+    # feed = fetcher.get_feed()
+
+    # print(asyncio.run(fetcher.get_game_async(place_id)))
 
     # search_query = 'deadrails'
     # print(fetcher.get_search_query(search_query))
