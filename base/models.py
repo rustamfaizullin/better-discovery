@@ -17,19 +17,19 @@ class Game(models.Model):
   avatar_type = models.TextField(blank=True, null=True)
   active = models.TextField(blank=True, null=True)
   icon_url = models.TextField(blank=True, null=True)
-  outdated = models.BooleanField(default=True)
   thumbnails = models.JSONField(default=list, blank=True, null=True)
+  rating = models.DecimalField(max_digits=3, decimal_places=1, default=0.00, blank=True, null=True)
 
   def __str__(self):
     return str(self.id)
   
   def get_avg_rating(self):
-    return Game.objects.filter(id=self.id).aggregate(avg_rating=Avg('reviews__score'))
+    return Game.objects.filter(id=self.id).aggregate(avg_rating=Avg('reviews__score')) or '0.00'
 
 class Review(models.Model):
   game = models.ForeignKey(Game, on_delete=models.CASCADE, related_name='reviews')
   author = models.ForeignKey(User, on_delete=models.CASCADE)
-  body = models.TextField()
+  body = models.TextField(blank=True, null=True)
   created = models.DateTimeField(auto_now_add=True)
   score = models.IntegerField(
     choices=[(i, str(i)) for i in range(11)],

@@ -21,6 +21,17 @@ import dj_database_url
 
 load_dotenv()
 
+CELERY_BEAT_SCHEDULE = {
+    'cleanup-games-every-hour': {
+        'task': 'base.tasks.cleanup_games',
+        'schedule': 3600.0,
+        'args': (0, 49, []),
+    },
+    'update-outdated-every-90-seconds': {
+        'task': 'base.tasks.update_feed',
+        'schedule': 90.0,
+    },
+}
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
@@ -31,7 +42,7 @@ SECRET_KEY = os.environ.get('SECRET_KEY')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['localhost']
+ALLOWED_HOSTS = ['localhost', '0.0.0.0']
 # ALLOWED_HOSTS = ['better-discovery.onrender.com', '.onrender.com']
 
 
@@ -46,6 +57,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
 
     'base.apps.BaseConfig',
+    'api.apps.ApiConfig',
 
     'rest_framework',
 ]
@@ -85,17 +97,22 @@ WSGI_APPLICATION = 'better_discovery.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
-
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('NAME'),
-        'USER': os.environ.get('USER'),
-        'PASSWORD': os.environ.get('PASSWORD'),
-        'HOST': os.environ.get('HOST'),
-        'PORT': os.environ.get('PORT'),
+DATABASE_URL = os.environ.get("DATABASE_URL")
+if os.environ.get("CELERY_BROKER_URL"):
+    DATABASES = {
+        'default': dj_database_url.parse(DATABASE_URL, conn_max_age=600)
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.environ.get('NAME'),
+            'USER': os.environ.get('USER'),
+            'PASSWORD': os.environ.get('PASSWORD'),
+            'HOST': os.environ.get('HOST'),
+            'PORT': os.environ.get('PORT'),
+        }
+    }
 
 
 # Password validation
@@ -116,12 +133,12 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-# DATABASE_URL = os.getenv('DATABASE_URL')
-# if DATABASE_URL:
-#     try:
-#         DATABASES['default'] = dj_database_url.parse(DATABASE_URL, conn_max_age=600)
-#     except Exception as e:
-#         print(f"Failed to connect to DATABASE_URL: {e}")
+DATABASE_URL = os.getenv('DATABASE_URL')
+if DATABASE_URL:
+    try:
+        DATABASES['default'] = dj_database_url.parse(DATABASE_URL, conn_max_age=600)
+    except Exception as e:
+        print(f"Failed to connect to DATABASE_URL: {e}")
 
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
@@ -150,3 +167,20 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": "redis://redis:6379/1",
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+        }
+    }
+}
+
+CELERY_BROKER_URL = "redis://redis:6379/0"
+CELERY_RESULTS_BACKEND = "redis://redis:6379/0"
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = "UTC"

@@ -28,15 +28,15 @@
       {% endif %}
     </p>
     <p class='game-stat'>Url:
-      <a href="https://www.roblox.com/games/{{game_data.place_id}}" target="_blank" class='link'>
-        {{game_data.place_id}}
+      <a href="https://www.roblox.com/games/{{game_data.id}}" target="_blank" class='link'>
+        {{game_data.id}}
       </a>
     </p>
   </div>
   <div class='carousel'>
     <!-- Container for images -->
     <div class='carousel-images'>
-      {% for url in thumbnail_urls %}
+      {% for url in game_data.thumbnails %}
         <img src="{{url}}" alt="Game Thumbnail" class='carousel-image'>
       {% endfor %}
     <!-- buttons for directions -->

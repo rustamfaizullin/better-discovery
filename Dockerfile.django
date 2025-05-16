@@ -1,0 +1,17 @@
+FROM base-image
+
+RUN groupadd -g 1000 django && useradd -u 1000 -g django -m django
+COPY manage.py .
+COPY templates/ ./templates/
+COPY static/ ./static/
+COPY staticfiles/ ./staticfiles/
+COPY .env .
+COPY entrypoint.sh .
+RUN chown -R django:django /app
+RUN chmod +x entrypoint.sh
+USER django
+HEALTHCHECK --interval=30s --timeout=3s \
+  CMD curl -f 'http://localhost:8000' || exit 1
+
+ENTRYPOINT [ "./entrypoint.sh" ]
+CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]

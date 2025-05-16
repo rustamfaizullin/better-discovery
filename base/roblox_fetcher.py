@@ -58,7 +58,7 @@ class RobloxFetcher:
     GAME_DATA_URL = 'https://games.roblox.com/v1/games?universeIds={input}'
     GAME_UNIVERSE_IDS_URL = 'https://games.roblox.com/v1/games/multiget-place-details?placeIds={input}'
     GAME_ICON_URL = 'https://thumbnails.roblox.com/v1/places/gameicons?placeIds={input}&returnPolicy=PlaceHolder&size=256x256&format=Png&isCircular=false'
-    SEARCH_QUERY_URL = 'https://apis.roblox.com/search-api/omni-search?searchQuery={input}&sessionId=1'
+    SEARCH_QUERY_URL = 'https://apis.roblox.com/search-api/omni-search?searchQuery={input}&sessionId=246624'
 
     def __init__(self):
         self.headers = {
@@ -112,8 +112,24 @@ class RobloxFetcher:
         icons_data = await self.fetch_json_async(self.GAME_ICON_URL, place_ids_icons, session)
         return icons_data
     
+    async def get_game_icon_async(self, place_id, session):
+        if not place_id:
+            return None
+        icons_data = await self.fetch_json_async(url_template=self.GAME_ICON_URL, input_value=place_id, session=session)
+        return icons_data
+    
+    def get_game_icon(self, place_id):
+        if not place_id:
+            return None
+        icons_data = self.fetch_json(self.GAME_ICON_URL, place_id)
+        return icons_data
+
     async def fetch_game_thumbnails_async(self, session, universe_id):
         data = await self.fetch_json_async(self.THUMBNAIL_URL, universe_id, session)
+        return data
+    
+    def fetch_game_thumbnails(self, universe_id):
+        data = self.fetch_json(self.THUMBNAIL_URL, universe_id)
         return data
 
     async def fetch_games_thumbnails(self, session, universe_ids):
@@ -125,8 +141,11 @@ class RobloxFetcher:
     async def fetch_game_data_async(self, session, universe_id):
         data = await self.fetch_json_async(self.GAME_DATA_URL, universe_id, session)
         data = data['data'][0]
-
         return data
+    
+    def fetch_game_data(self, universe_id):
+        data = self.fetch_json(self.GAME_DATA_URL, universe_id)
+        return data['data'][0]
     
     def get_discover_games_datas(self, data):
         place_ids = [item['contents'][0]['rootPlaceId'] for item in data]
@@ -148,13 +167,15 @@ class RobloxFetcher:
         
         games_ratings = []
         for i, place_id in enumerate(place_ids):
-            game = Game.objects.get_or_create(id=place_id)
-            reviews = Review.objects.filter(game=game)
-            number_reviews = len(reviews)
-            if number_reviews > 0:
-                game_rate = sum(review.score for review in reviews) / number_reviews
-            else:
-                game_rate = 0
+            game = Game.objects.filter(id=place_id)
+            if game:
+                game = Game.objects.get(id=place_id)
+                reviews = Review.objects.filter(game=game)
+                number_reviews = len(reviews)
+                if number_reviews > 0:
+                    game_rate = sum(review.score for review in reviews) / number_reviews
+            if not game or number_reviews == 0:
+                game_rate = 0.00
             games_ratings.append(game_rate)
 
         results = []
@@ -197,41 +218,96 @@ class RobloxFetcher:
         
         return results
     
-    async def get_feed_async(self, games_ids_ratings):
-        expected_games_ids = [item for item, _ in games_ids_ratings]
+    async def get_feed_async(self, games_ids_ratings, expected_games_ids):
         async with aiohttp.ClientSession() as session:
             place_objects = await self.get_feed_games_datas_async(games_ids_ratings, session)
             output_games_ids = [item.place_id for item in place_objects]
 
             error_list = [item for item in expected_games_ids if item not in output_games_ids]
 
-            return place_objects, error_list, expected_games_ids
+            return place_objects, error_list
         
     async def get_game_async(self, place_id):
         async with aiohttp.ClientSession() as session:
             universe_id = await self.get_universe_id_async(place_id, session)
-            thumbnail_data, raw_game_data = await asyncio.gather(
+            thumbnail_data, raw_game_data, icon_data = await asyncio.gather(
                 self.fetch_game_thumbnails_async(session, universe_id),
-                self.fetch_game_data_async(session, universe_id)
-                )
-            thumbnail_urls = reversed([item['imageUrl'] for item in thumbnail_data['data'][0]['thumbnails']])
+                self.fetch_game_data_async(session, universe_id),
+                self.get_game_icon_async(session=session, place_id=place_id),
+            )
+            icon_url = icon_data['data'][0]['imageUrl']
+            thumbnail_urls = list(reversed([item['imageUrl'] for item in thumbnail_data['data'][0]['thumbnails']]))
 
             game_data = GameData(
-                raw_game_data['rootPlaceId'],
-                raw_game_data['sourceName'],
-                raw_game_data['sourceDescription'],
-                raw_game_data['creator']['id'],
-                raw_game_data['creator']['name'],
-                raw_game_data['creator']['type'],
-                self.change_value(raw_game_data['visits']),
-                self.change_value(raw_game_data['favoritedCount']),
-                datetime.datetime.fromisoformat(raw_game_data['created']).strftime('%d/%m/%Y'),
-                datetime.datetime.fromisoformat(raw_game_data['updated']).strftime('%d/%m/%Y'),
-                self.change_value(raw_game_data['playing']),
-                raw_game_data['universeAvatarType'],
+                place_id = raw_game_data['rootPlaceId'],
+                source_name = raw_game_data['name'],
+                source_description = raw_game_data['description'],
+                creator_id = raw_game_data['creator']['id'],
+                creator_type = raw_game_data['creator']['name'],
+                creator_name = raw_game_data['creator']['type'],
+                visits = self.change_value(raw_game_data['visits']),
+                favorited_count = self.change_value(raw_game_data['favoritedCount']),
+                created = datetime.datetime.fromisoformat(raw_game_data['created']).strftime('%d/%m/%Y'),
+                updated = datetime.datetime.fromisoformat(raw_game_data['updated']).strftime('%d/%m/%Y'),
+                active = self.change_value(raw_game_data['playing']),
+                avatar_type = raw_game_data['universeAvatarType'],
             )
 
-            return thumbnail_urls, game_data
+            return game_data, icon_url, thumbnail_urls
+        
+    async def get_feed_game_async(self, place_id):
+        async with aiohttp.ClientSession() as session:
+            universe_id = await self.get_universe_id_async(place_id, session)
+            thumbnail_data, raw_game_data, icon_data = await asyncio.gather(
+                self.fetch_game_thumbnails_async(session=session, universe_id=universe_id),
+                self.fetch_game_data_async(session=session, universe_id=universe_id),
+                self.get_game_icon_async(session=session, place_id=place_id),
+            )
+            icon_url = icon_data['data'][0]['imageUrl']
+            game_data = GameData(
+                source_name = raw_game_data['name'],
+                source_description = raw_game_data['description'],
+                creator_id = raw_game_data['creator']['id'],
+                creator_type = raw_game_data['creator']['name'],
+                creator_name = raw_game_data['creator']['type'],
+                visits = self.change_value(raw_game_data['visits']),
+                favorited_count = self.change_value(raw_game_data['favoritedCount']),
+                created = datetime.datetime.fromisoformat(raw_game_data['created']).strftime('%d/%m/%Y'),
+                updated = datetime.datetime.fromisoformat(raw_game_data['updated']).strftime('%d/%m/%Y'),
+                active = self.change_value(raw_game_data['playing']),
+                avatar_type = raw_game_data['universeAvatarType']
+            )
+            thumbnail_urls = reversed([item['imageUrl'] for item in thumbnail_data['data'][0]['thumbnails']])
+
+            return game_data, icon_url
+        
+    def get_game(self, place_id):
+        universe_id = self.get_universe_id(place_id)
+        icon_url = self.get_game_icon(place_id)['data'][0]['imageUrl']
+        raw_game_data = self.fetch_game_data(universe_id=universe_id)
+        thumbnail_data = self.fetch_game_thumbnails(universe_id=universe_id)
+        game_data = GameData(
+                place_id = raw_game_data['rootPlaceId'],
+                source_name = raw_game_data['name'],
+                source_description = raw_game_data['description'],
+                creator_id = raw_game_data['creator']['id'],
+                creator_type = raw_game_data['creator']['type'],
+                creator_name = raw_game_data['creator']['name'],
+                visits = self.change_value(raw_game_data['visits']),
+                favorited_count = self.change_value(raw_game_data['favoritedCount']),
+                created = datetime.datetime.fromisoformat(raw_game_data['created']).strftime('%d/%m/%Y'),
+                updated = datetime.datetime.fromisoformat(raw_game_data['updated']).strftime('%d/%m/%Y'),
+                active = self.change_value(raw_game_data['playing']),
+                avatar_type = raw_game_data['universeAvatarType'],
+            )
+        thumbnail_urls = list(reversed([item['imageUrl'] for item in thumbnail_data['data'][0]['thumbnails']]))
+
+        return game_data, icon_url, thumbnail_urls
+    
+    def cleanup_games(self, place_ids):
+        api_input = '&placeIds='.join(str(id) for id in place_ids)
+        data = self.fetch_json(self.GAME_UNIVERSE_IDS_URL, api_input)
+        return [item["placeId"] for item in data]
 
     def get_search_query(self, search_query):
         data = self.fetch_json(self.SEARCH_QUERY_URL, search_query)['searchResults']
@@ -251,7 +327,7 @@ class RobloxFetcher:
             value = game_data_value / 1000
             return f'{value:.1f}K'
         else:
-            return game_data_value
+            return str(game_data_value)
             
 
 # entry point

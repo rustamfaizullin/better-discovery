@@ -13,6 +13,8 @@ from .forms import ReviewForm
 from .models import Game, Review
 import asyncio
 import time
+from asgiref.sync import sync_to_async
+from django.core.cache import cache
 
 fetcher = RobloxFetcher()
 
@@ -20,24 +22,23 @@ def home(request):
     return redirect('feed')
 
 def feed(request):
-    games_ids_ratings = tuple(Game.objects.annotate(
+    games = list(Game.objects.annotate(
             average_rating=Coalesce(Avg('reviews__score'), 0.0), count=Count('reviews')
-        ).order_by('-average_rating', '-count')[:49].values_list('id', 'average_rating', flat=False))
-    feed_games, error_list, expected_games_ids = asyncio.run(fetcher.get_feed_async(games_ids_ratings))
-    MIN_RETURNED_THRESHOLD = 0.2
+        ).order_by('-average_rating', '-count')[:49])
+    feed_games = []
 
-    if not error_list:
-        context = {'feed_games': feed_games}
-        return render(request, 'base/feed.html', context)
-    elif len(error_list) < len(expected_games_ids) * MIN_RETURNED_THRESHOLD:
-        for game_id in error_list:
-            try:
-                game = Game.objects.get(id=game_id)
-                Review.objects.filter(game=game).delete()
-                game.delete()
-            except Game.DoesNotExist:
-                continue
-        return redirect('feed')
+    for game in games:
+        cached_game = cache.get(f'game_{game.id}')
+        if cached_game:
+            print(f'cache feed game - {game.id}')
+            game.source_name = cached_game['source_name']
+            game.icon_url = cached_game['icon_url']
+        game.rating = game.average_rating
+        print(f'feed game - {game.id}')
+        feed_games.append(game)
+
+    context = {'feed_games': feed_games}
+    return render(request, 'base/feed.html', context)
 
 def discover(request):
     search_query = request.GET.get('q') if request.GET.get('q') is not None else ''
@@ -49,30 +50,19 @@ def discover(request):
 def game(request, pk):
     place_id = pk
 
-    thumbnail_urls, game_data = asyncio.run(fetcher.get_game_async(place_id))
-
-    game_instance, created = Game.objects.get_or_create(id=place_id)
-
-    if created or game_instance.outdated:
-        thumbnail_urls, game_data = asyncio.run(fetcher.get_game_async(place_id))
-        game_instance.source_name = game_data.source_name
-        game_instance.source_description = game_data.source_description
-        game_instance.creator_id = game_data.creator_id
-        game_instance.creator_type = game_data.creator_type
-        game_instance.creator_name = game_data.creator_name
-        game_instance.visits = game_data.visits
-        game_instance.favorited_count = game_data.favorited_count
-        game_instance.created = game_data.created
-        game_instance.updated = game_data.updated
-        game_instance.avatar_type = game_data.avatar_type
-        game_instance.active = game_data.active
-        # game_instance.icon_url = game_data.icon_url
-        game_instance.thumbnails = list(thumbnail_urls)
-        game_instance.save()
-        
-    reviews = Review.objects.filter(game=game_instance)
-
+    game_instance, _ = Game.objects.get_or_create(id=place_id)
     game_rate = game_instance.get_avg_rating()['avg_rating']
+
+    cached_game = cache.get(f'game_{game_instance.id}')
+    if cached_game:
+        print('cache')
+        get_cache_data(game_instance, cached_game)
+    else:
+        game_data, icon_url, thumbnail_urls = asyncio.run(fetcher.get_game_async(place_id))
+        update_game_fields(game_instance, game_data, icon_url, thumbnail_urls, game_rate)
+        setCache(place_id, game_data, icon_url, thumbnail_urls)
+
+    reviews = Review.objects.filter(game=game_instance)
 
     form = ReviewForm()
 
@@ -92,6 +82,8 @@ def game(request, pk):
                     body=request.POST.get('body'),
                     score=request.POST.get('score')
                 )
+                game_instance.rating = game_rate
+                game_instance.save()
                 messages.success(request, 'review succesfully applied')
             else:
                 messages.error(request, 'review is not valid')
@@ -169,3 +161,51 @@ def editReview(request, pk):
         )
         return redirect('game', pk=place_id)
     return render(request, 'base/edit.html', {'form': form})
+
+def setCache(place_id, game_data, icon_url, thumbnail_urls):
+    cache.set(f'game_{place_id}', {
+        'source_name': game_data.source_name,
+        'source_description': game_data.source_description,
+        'creator_id': game_data.creator_id,
+        'creator_type': game_data.creator_type,
+        'creator_name': game_data.creator_name,
+        'visits': game_data.visits,
+        'favorited_count': game_data.favorited_count,
+        'created': game_data.created,
+        'updated': game_data.updated,
+        'avatar_type': game_data.avatar_type,
+        'active': game_data.active,
+        'icon_url': icon_url,
+        'thumbnail_urls': thumbnail_urls
+    }, timeout=100)
+
+def update_game_fields(game_instance, game_data, icon_url, thumbnail_urls, rating):
+    game_instance.source_name = game_data.source_name
+    game_instance.source_description = game_data.source_description
+    game_instance.creator_id = game_data.creator_id
+    game_instance.creator_type = game_data.creator_type
+    game_instance.creator_name = game_data.creator_name
+    game_instance.visits = game_data.visits
+    game_instance.favorited_count = game_data.favorited_count
+    game_instance.created = game_data.created
+    game_instance.updated = game_data.updated
+    game_instance.avatar_type = game_data.avatar_type
+    game_instance.active = game_data.active
+    game_instance.icon_url = icon_url
+    game_instance.thumbnails = thumbnail_urls
+    game_instance.rating = rating
+    game_instance.save()
+
+def get_cache_data(game_instance, cached_game):
+    game_instance.source_name = cached_game['source_name']
+    game_instance.source_description = cached_game['source_description']
+    game_instance.creator_id = cached_game['creator_id']
+    game_instance.creator_type = cached_game['creator_type']
+    game_instance.creator_name = cached_game['creator_name']
+    game_instance.visits = cached_game['visits']
+    game_instance.favorited_count = cached_game['favorited_count']
+    game_instance.created = cached_game['created']
+    game_instance.updated = cached_game['updated']
+    game_instance.avatar_type = cached_game['avatar_type']
+    game_instance.active = cached_game['active']
+    game_instance.thumbnails = cached_game['thumbnail_urls']

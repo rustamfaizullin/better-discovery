@@ -17,8 +17,8 @@ feed
     {% for feed_game in feed_games %}
         <div class='game-feed-container loading' >
             <div class='game-container'>
-                <a href="{% url 'game' feed_game.place_id %}">
-                    <img src="{{feed_game.icon}}" alt="{{feed_game.name}}" class='game-feed-image'>
+                <a href="{% url 'game' feed_game.id %}">
+                    <img src="{{feed_game.icon_url}}" alt="{{feed_game.source_name}}" class='game-feed-image'>
                     {% if feed_game.rating %}
                     <p class='game-rating'>
                         {{feed_game.rating}}
@@ -29,7 +29,7 @@ feed
                         </p>
                     {% endif %}
                     <p class='game-name'>
-                        {{feed_game.name}}
+                        {{feed_game.source_name}}
                     </p>
                 </a>
             </div>

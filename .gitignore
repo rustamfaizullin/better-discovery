@@ -2,3 +2,4 @@ better_discovery/.env
 variables.env
 base/.env
 dump.backup
+.env

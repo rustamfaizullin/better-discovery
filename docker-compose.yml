@@ -2,11 +2,98 @@ services:
   db:
     image: postgres
     env_file:
-      - variables.env
+      - .env
     volumes:
       - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U myuserr"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # ports:
+    #   - "54322:5432"
+    restart: unless-stopped
+
+  redis:
+    image: redis:8.0.1
+    volumes:
+      - redis-data:/data
+    # ports:
+    #   - "6379:6379"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  django:
+    build:
+      context: .
+      dockerfile: Dockerfile.django
+    command: ["python", "manage.py", "runserver", "0.0.0.0:8000"]
     ports:
-      - "54322:5432"
+      - "8000:8000"
+    volumes:
+      - ./better_discovery:/app/better_discovery
+      - ./base:/app/base
+      - ./api:/app/api
+      - ./manage.py:/app/manage.py
+      - ./templates:/app/templates
+      - ./static:/app/static
+      - ./staticfiles:/app/staticfiles
+      - ./.env:/app/.env
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      - DJANGO_SETTINGS_MODULE=better_discovery.settings
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  celery:
+    build:
+      context: .
+      dockerfile: Dockerfile.celery
+    volumes:
+      - ./better_discovery:/app/better_discovery
+      - ./base:/app/base
+      - ./api/:/app/api
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - DJANGO_SETTINGS_MODULE=better_discovery.settings
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  celery-beat:
+    build:
+      context: .
+      dockerfile: Dockerfile.celery
+    command: ["celery", "-A", "better_discovery", "beat", "--loglevel=info"]
+    volumes:
+      - ./better_discovery:/app/better_discovery
+      - ./base:/app/base
+      - ./api/:/app/api
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - DJANGO_SETTINGS_MODULE=better_discovery.settings
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
 
 volumes:
   db-data:
+  redis-data:
