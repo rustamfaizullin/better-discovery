@@ -50,7 +50,7 @@
     </div>
     <p class="game-creator">
       <span class="made-by">Created By </span>
-      {% if creator_type == 'Group' %}
+      {% if game_data.creator_type == 'Group' %}
       <a href="https://www.roblox.com/communities/{{game_data.creator_id}}" target="_blank" class='link'>{{game_data.creator_name}}</a>
       {% else %}
       <a href="https://www.roblox.com/users/{{game_data.creator_id}}/profile" target="_blank" class='link'>{{game_data.creator_name}}</a>

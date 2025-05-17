@@ -11,7 +11,7 @@ services:
       timeout: 5s
       retries: 5
     # ports:
-    #   - "54322:5432"
+    #   - "54321:5432"
     restart: unless-stopped
 
   redis:
@@ -31,7 +31,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.django
-    command: ["python", "manage.py", "runserver", "0.0.0.0:8000"]
     ports:
       - "8000:8000"
     volumes:
