@@ -3,3 +3,4 @@ variables.env
 base/.env
 dump.backup
 .env
+/venv/

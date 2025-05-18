@@ -1,8 +1,4 @@
 FROM base-image
-# RUN apt-get update && apt-get install -y \
-#     libpq-dev \
-#     gcc \
-#     && rm -rf /var/lib/apt/lists/*
 RUN groupadd -g 1000 celery && useradd -u 1000 -g celery -m celery
 RUN chown -R celery:celery /app
 USER celery

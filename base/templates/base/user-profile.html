@@ -10,7 +10,7 @@
 {% block content %}
 
 {{user.username}}
-<img src="{{user.avatar.url}}" alt="user-avatar" width="200" height="200" class="avatar">
+<img src="/static{{user.avatar.url}}" alt="user-avatar" width="200" height="200" class="avatar">
 <div class='reviews-container'>
 {% for review in reviews %}
   <div class='review-container'>
