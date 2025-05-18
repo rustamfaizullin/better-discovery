@@ -1,5 +1,4 @@
 from django.shortcuts import render, redirect
-from django.contrib.auth.models import User
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import login, logout, authenticate
@@ -9,8 +8,8 @@ from django.contrib import messages
 from django.http import HttpResponse
 from .roblox_fetcher import RobloxFetcher
 import datetime
-from .forms import ReviewForm
-from .models import Game, Review
+from .forms import ReviewForm, UserForm, MyUserCreationForm
+from .models import Game, Review, User
 import asyncio
 import time
 from asgiref.sync import sync_to_async
@@ -95,15 +94,15 @@ def game(request, pk):
 
 def loginPage(request):
     if request.method == 'POST':
-        username = request.POST.get('username')
+        email = request.POST.get('email')
         password = request.POST.get('password')
 
         try:
-            user = User.objects.get(username=username)
+            user = User.objects.get(email=email)
         except:
             messages.error(request, 'user does not exist')
 
-        user = authenticate(request, username=username, password=password)
+        user = authenticate(request, email=email, password=password)
         if user is not None:
             login(request, user)
             return redirect('feed')
@@ -118,9 +117,9 @@ def logoutUser(request):
     return redirect('feed')
 
 def registerPage(request):
-    form = UserCreationForm()
+    form = MyUserCreationForm()
     if request.method == "POST":
-        form = UserCreationForm(request.POST)
+        form = MyUserCreationForm(request.POST)
         if form.is_valid():
             user = form.save(commit=False)
             user.username = user.username.lower()
@@ -161,6 +160,25 @@ def editReview(request, pk):
         )
         return redirect('game', pk=place_id)
     return render(request, 'base/edit.html', {'form': form})
+
+def updateUser(request):
+    user = request.user
+    form = UserForm(instance=user)
+
+    if request.method == "POST":
+        form = UserForm(request.POST, request.FILES, instance=user)
+        if form.is_valid():
+            form.save()
+            return redirect('user-profile', pk=user.id)
+    
+    return render(request, 'base/update-user.html', {'form': form})
+        
+def userProfile(request, pk):
+    user = User.objects.get(id=pk)
+    reviews = Review.objects.filter(author=user)
+    context = {'user': user, 'reviews': reviews}
+
+    return render(request , 'base/user-profile.html', context)
 
 def setCache(place_id, game_data, icon_url, thumbnail_urls):
     cache.set(f'game_{place_id}', {

@@ -145,14 +145,32 @@
 }
 
 .review-author-container {
+  display: grid;
+  grid-template-columns: 0.3fr 1fr;
+  justify-items: center;
+  padding-top: 5px;
+  padding-bottom: 5px;
+  margin: 0;
+}
+
+.review-game-container {
   padding-top: 5px;
   padding-bottom: 5px;
   margin: 0;
 }
 
 .review-author {
+  overflow: hidden;
   color: white;
   margin: 0;
+  margin-right: 10px;
+}
+
+.review-game {
+  overflow: hidden;
+  color: black;
+  margin: 0;
+  margin-right: 10px;
 }
 
 .review-body {

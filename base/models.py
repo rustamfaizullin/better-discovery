@@ -1,7 +1,17 @@
 from django.db import models
-from django.contrib.auth.models import User
+from django.contrib.auth.models import AbstractUser
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db.models import Avg
+
+class User(AbstractUser):
+  name = models.CharField(max_length=200, null=True, blank=True)
+  email = models.EmailField(unique=True)
+  bio = models.TextField(null=True, blank=True)
+
+  avatar = models.ImageField(null=True, default="default-avatar.png")
+
+  USERNAME_FIELD = 'email'
+  REQUIRED_FIELDS = []
 
 class Game(models.Model):
   id = models.CharField(max_length=200, primary_key=True)
@@ -29,7 +39,7 @@ class Game(models.Model):
 class Review(models.Model):
   game = models.ForeignKey(Game, on_delete=models.CASCADE, related_name='reviews')
   author = models.ForeignKey(User, on_delete=models.CASCADE)
-  body = models.TextField(blank=True, null=True)
+  body = models.TextField(blank=True, null=True, max_length=500)
   created = models.DateTimeField(auto_now_add=True)
   score = models.IntegerField(
     choices=[(i, str(i)) for i in range(11)],

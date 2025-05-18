@@ -1,0 +1,20 @@
+{% extends "main.html" %}
+
+{% block content %}
+
+<div>
+  <form action="" method="POST" enctype="multipart/form-data">
+    {% csrf_token %}
+    {% for field in form %}
+      <div>
+        <label for="">{{field.label}}</label>
+        {{field}}
+      </div>
+    {% endfor %}
+
+    <a href="{{request.META.HTTP_REFERER}}">Cancel</a>
+    <button type='submit'>Update</button> 
+  </form>
+</div>
+
+{% endblock %}

@@ -100,8 +100,11 @@
   {% for review in reviews %}
     <div class='review-container'>
       <div class='review-author-container'>
+        <a href="{% url 'user-profile' review.author.id %}">
+          <img src="{{review.author.avatar.url}}" alt="user-avatar" width="50" height="50" class="avatar">
+        </a>
         <p class='review-author'>
-          User: {{review.author}}
+          User: {{review.author.username}}
         </p>
       </div>
       <div class='review-score-container'>

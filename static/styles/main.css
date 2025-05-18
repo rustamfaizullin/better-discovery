@@ -45,3 +45,10 @@ pre {
 .search {
   padding-top: 10px;
 }
+
+.avatar {
+  border: solid;
+  border-radius: 100%;
+  border-color: black;
+  border-width: 1px
+}

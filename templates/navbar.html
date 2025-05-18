@@ -1,12 +1,19 @@
+{% load static %}
+
 <a href="{% url 'feed' %}" class='logo'>
   logo
 </a>
 
-{{request.user}}
-
 {% if request.user.is_authenticated %}
-<a href="{% url 'logout' %}">
+{{request.user.username}}
+<a href="{% url 'user-profile' request.user.id %}">
+  <img src="{{request.user.avatar.url}}" alt="user-avatar" width="50" height="50" class="avatar">
+</a>
+<a href="{% url 'logout' %}" style='padding-right: 10px'>
   Logout
+</a>
+<a href="{% url 'update-profile' %}">
+  Update Profile
 </a>
 {% else %}
 <a href="{% url 'login' %}">

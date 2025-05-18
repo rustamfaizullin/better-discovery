@@ -7,13 +7,12 @@
 
 {% endblock %}
 
-{% block title %}
-delete
-{% endblock %}
-
 {% block content %}
-<p>
-  Are you sure you want to delete:
+
+{{user.username}}
+<img src="{{user.avatar.url}}" alt="user-avatar" width="200" height="200" class="avatar">
+<div class='reviews-container'>
+{% for review in reviews %}
   <div class='review-container'>
     <div class='review-game-container'>
       <p class='review-game'>
@@ -29,18 +28,17 @@ delete
     <div class='review-body-container'>
       <pre class='review-body' >{{review.body}}</pre>
     </div>
+    {% if request.user == review.author %}
+    <div class='edit-container'>
+      <a href="{% url 'edit-review' review.id %}" class='edit'>Edit</a>
+      <a href="{% url 'delete-review' review.id %}" class='delete'>Delete</a>
+    </div>
+    {% endif %}
   </div>
-</p>
+{% endfor %}
+</div>
 
-<form action="" method="POST">
-  {% csrf_token %}
-  <input type="submit" value="confirm">
-</form>
 
-<p>
-  <a href="{{request.META.HTTP_REFERER}}">Go back</a>
-</p>
-
-<script src="{% static 'js/delete-review.js' %}"></script>
+<script src="{% static 'js/user-profile.js' %}"></script>
 
 {% endblock content %}
