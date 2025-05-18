@@ -1,21 +1,21 @@
 services:
-  web:
-    build:
-      context: .
-      dockerfile: Dockerfile.gunicorn
-    ports:
-      - "8000:8000"
-    env_file:
-      - .env
-    volumes:
-      - .:/app
-      - static:/app/static
-      - media:/app/media
-    depends_on:
-      - db
-      - redis
-      - celery
-      - celery-beat
+  # web:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile.gunicorn
+  #   ports:
+  #     - "8000:8000"
+  #   env_file:
+  #     - .env
+  #   volumes:
+  #     - .:/app
+  #     - static:/app/static
+  #     - media:/app/media
+  #   depends_on:
+  #     - db
+  #     - redis
+  #     - celery
+  #     - celery-beat
 
   db:
     image: postgres
@@ -48,30 +48,30 @@ services:
       timeout: 5s
       retries: 5
 
-  # django:
-  #   build:
-  #     context: .
-  #     dockerfile: Dockerfile.django
-  #   ports:
-  #     - "8000:8000"
-  #   volumes:
-  #     - ./better_discovery:/app/better_discovery
-  #     - ./base:/app/base
-  #     - ./api:/app/api
-  #     - ./manage.py:/app/manage.py
-  #     - ./templates:/app/templates
-  #     - ./static:/app/static
-  #     - ./staticfiles:/app/staticfiles
-  #     - ./.env:/app/.env
-  #   environment:
-  #     - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
-  #     - DJANGO_SETTINGS_MODULE=better_discovery.settings
-  #   depends_on:
-  #     db:
-  #       condition: service_healthy
-  #     redis:
-  #       condition: service_healthy
-  #   restart: unless-stopped
+  django:
+    build:
+      context: .
+      dockerfile: Dockerfile.django
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./better_discovery:/app/better_discovery
+      - ./base:/app/base
+      - ./api:/app/api
+      - ./manage.py:/app/manage.py
+      - ./templates:/app/templates
+      - ./static:/app/static
+      - ./staticfiles:/app/staticfiles
+      - ./.env:/app/.env
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      - DJANGO_SETTINGS_MODULE=better_discovery.settings
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
 
   celery:
     build:
@@ -114,21 +114,21 @@ services:
         condition: service_healthy
     restart: unless-stopped
   
-  nginx:
-    image: nginx:latest
-    ports:
-     - "80:80"
-     - "443:443"
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf
-      - /etc/letsencrypt/:/etc/letsencrypt
-      - static:/app/static
-      - media:/app/static
-    depends_on:
-      - web
+  # nginx:
+  #   image: nginx:latest
+  #   ports:
+  #    - "80:80"
+  #    - "443:443"
+  #   volumes:
+  #     - ./nginx.conf:/etc/nginx/nginx.conf
+  #     - /etc/letsencrypt/:/etc/letsencrypt
+  #     - static:/app/static
+  #     - media:/app/static
+  #   depends_on:
+  #     - web
 
 volumes:
   db-data:
   redis-data:
-  static:
-  media:
+  # static:
+  # media:
